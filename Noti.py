@@ -142,7 +142,7 @@ def main():
         # Schlussbenachrichtigung einstellen:
         global letztes_delay   
         letztes_delay = letztes_delay + delay * 60
-        notification.schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='Media/Sounds/arcade/Coin_3')
+        notification.schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='arcade:Coin_3')
         
         print(get_benachrichtigungen_status())
     
