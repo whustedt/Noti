@@ -1,10 +1,10 @@
 import datetime, dialogs, json, notification, os, re, speech, time, ui
 
 task_types = {
-    's' : ('schnell 🏃🏻‍♀️', 'Media/Sounds/arcade/Powerup_3'), 
-    'n' : ('normal 🏃‍♀️', 'Media/Sounds/arcade/Powerup_1'),
-    'l' : ('langsam 🚶🏻‍♀️', 'Media/Sounds/arcade/Powerup_2'),
-    'p' : ('pause 🧘🏻‍♀️', 'Media/Sounds/arcade/Coin_1')
+    's' : ('schnell 🏃🏻‍♀️', 'arcade:Powerup_3'), 
+    'n' : ('normal 🏃‍♀️', 'arcade:Powerup_1'),
+    'l' : ('langsam 🚶🏻‍♀️', 'arcade:Powerup_2'),
+    'p' : ('pause 🧘🏻‍♀️', 'arcade:Coin_1')
     }
 
 programmes = {
@@ -214,7 +214,7 @@ def start(sender):
     # Schlussbenachrichtigung einstellen:
     global letztes_delay   
     letztes_delay = letztes_delay + delay * 60
-    PlannedNoti.init_and_schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='Media/Sounds/arcade/Coin_3')
+    PlannedNoti.init_and_schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='arcade:Coin_3')
     
     print(PlannedNoti.get_benachrichtigungen_status())
     sender.superview.close()
