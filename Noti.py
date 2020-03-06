@@ -77,51 +77,10 @@ def stell_benachrichtigung_ein(typ, dauer, delay_in_minuten):
     nachricht = '{} ({} min)'.format(typ[0], dauer)
     notification.schedule(nachricht, delay=letztes_delay, sound_name=typ[1])
     
-def get_benachrichtigungen_status():
-    noti_status = ''
-    for benachrichtigung in notification.get_scheduled():
-        zeitpunkt = time.localtime(benachrichtigung['fire_date'])
-        zeitpunkt_str = time.strftime("%H:%M:%S", zeitpunkt)
-        noti_status += '\n{}: {}'.format(zeitpunkt_str, benachrichtigung['message'])
-    return noti_status
-        
-def get_startchoice_text():
-    status = get_benachrichtigungen_status().splitlines()
-    if not status: # keine Notis terminiert
-        return 'Was tun?'
-    
-    t = datetime.datetime.fromtimestamp(notification.get_scheduled()[0]['fire_date'])
-    td = t - datetime.datetime.now()
-    td_str = str(td).split('.')[0] # cut milliseconds
-    text = 'Restdauer aktueller Task: {}'.format(td_str)
-    
-    for i in range(min(15, len(status))):
-        text += '\n' + status[i]
-    return text
-
-def get_siri_status(quiet_if_not_active=False):
-    ''' This is prepared for Siri Shortcuts which will be available with the next version of Pythonista'''
-    notis = notification.get_scheduled()
-    if not notis and quiet_if_not_active:
-        return None
-    elif not notis:
-        return 'Kein Intervalltraining aktiv.'
-    
-    t = datetime.datetime.fromtimestamp(notis[0]['fire_date'])
-    td = t - datetime.datetime.now()
-    text = 'Noch {} Minuten. '.format(round(td.total_seconds() / 60))
-    
-    m = re.match(r"(\w+?) .+\((\d+) min\)", notis[0]['message'])
-    if m:
-        text += 'Dann {} für {} Minuten.'.format(m[1], m[2])
-    return text
 
 def main():
-    siri_status = get_siri_status(quiet_if_not_active=True)
-    if siri_status: speech.say(siri_status, 'de-DE')
-    
     start_choice = dialogs.alert(title='Intervall-Benachrichtigungen', 
-        message=get_startchoice_text(), 
+        message='Was tun?', 
         button1='Start/Restart', 
         button2='Benachrichtigungen entfernen',
         button3='Schließen',
@@ -144,7 +103,7 @@ def main():
         letztes_delay = letztes_delay + delay * 60
         notification.schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='arcade:Coin_3')
         
-        print(get_benachrichtigungen_status())
+        print('Benachrichtigungen erstellt')
     
     elif start_choice == 2: # Benachrichtigungen entfernen
         notification.cancel_all()
