@@ -1,4 +1,4 @@
-import datetime, dialogs, json, notification, os, re, speech, time, ui
+import datetime, dialogs, notification, re, speech, time
 
 task_types = {
     's' : ('schnell 🏃🏻‍♀️', 'arcade:Powerup_3'), 
@@ -68,185 +68,87 @@ programmes = {
     ],
     '57 min' : [('l',10),('s',32),('l',15)]
     }
-
-filename_pause_data = "noti_paused_data.json"
-
-class PlannedNoti(object):
     
-    @classmethod
-    def init_and_schedule(cls, message, delay=None, sound_name=None, action_url=None):
-        notification.schedule(message=message, delay=delay, sound_name=sound_name, action_url=action_url)
-        return cls(notification.get_scheduled()[-1])
-    
-    def __init__(self, data):
-        self.data = data
-        
-    @property
-    def message(self):
-        return self.data['message']
-    @property
-    def fire_date(self): 
-        return self.data['fire_date']
-    @property
-    def sound_name(self):
-        return self.data['sound_name'].split('.')[0] # cut filename-suffix
-    @property
-    def action_url(self):
-        return self.data['action_url']
-    @property
-    def fire_date_readable(self):
-        fire_date_conv = time.localtime(self.fire_date)
-        return time.strftime("%H:%M:%S", fire_date_conv)    
-    @property
-    def time_remaining(self):
-        t = datetime.datetime.fromtimestamp(self.fire_date)
-        return t - datetime.datetime.now()
-        
-    def __str__(self):
-        return '{}, {}: {}'.format(self.fire_date_readable, self.time_remaining, self.data)
-    
-    __repr__ = __str__
-    
-    
-    
-    @staticmethod
-    def get_scheduled():
-        result = []
-        for scheduled_notification in notification.get_scheduled():
-            result.append(PlannedNoti(scheduled_notification))
-        return result
-
-    @staticmethod
-    def get_benachrichtigungen_status():
-        noti_status = ''
-        for noti in PlannedNoti.get_scheduled():
-            noti_status += '\n{}: {}'.format(noti.fire_date_readable, noti.message)
-        return noti_status
-        
-    @staticmethod
-    def pause():
-        carbonized = []
-        for noti in PlannedNoti.get_scheduled():
-            delay_in_sec = round(noti.time_remaining.total_seconds())
-            if delay_in_sec < 1: delay_in_sec = 1
-            carbonized.append({'message':noti.message, 'delay':delay_in_sec, 'sound_name':noti.sound_name, 'action_url':noti.action_url})
-        with open(filename_pause_data, "w") as write_file:
-            write_file.write(json.dumps(carbonized, indent=4))
-        notification.cancel_all()
-            
-    @staticmethod
-    def load_paused_data():
-        with open(filename_pause_data) as data_file:
-            data = json.load(data_file)
-        for carbonized_noti in data:
-            PlannedNoti.init_and_schedule(message=carbonized_noti['message'], delay=carbonized_noti['delay'], sound_name=carbonized_noti['sound_name'], action_url=carbonized_noti['action_url'])
-        os.remove(filename_pause_data)
-        
-    @staticmethod
-    def check_if_pause_data_is_available():
-        return os.path.exists(filename_pause_data)
-        
-    @staticmethod
-    def remove_pause_data():
-        if os.path.exists(filename_pause_data):
-            os.remove(filename_pause_data)
-
 letztes_delay = 0
 
 def stell_benachrichtigung_ein(typ, dauer, delay_in_minuten):
     global letztes_delay
     letztes_delay = letztes_delay + delay_in_minuten * 60
     nachricht = '{} ({} min)'.format(typ[0], dauer)
-    PlannedNoti.init_and_schedule(nachricht, delay=letztes_delay, sound_name=typ[1])
+    notification.schedule(nachricht, delay=letztes_delay, sound_name=typ[1])
+    
+def get_benachrichtigungen_status():
+    noti_status = ''
+    for benachrichtigung in notification.get_scheduled():
+        zeitpunkt = time.localtime(benachrichtigung['fire_date'])
+        zeitpunkt_str = time.strftime("%H:%M:%S", zeitpunkt)
+        noti_status += '\n{}: {}'.format(zeitpunkt_str, benachrichtigung['message'])
+    return noti_status
         
 def get_startchoice_text():
-    status = PlannedNoti.get_benachrichtigungen_status().splitlines()
+    status = get_benachrichtigungen_status().splitlines()
     if not status: # keine Notis terminiert
-        return 'Keine Session aktiv'
+        return 'Was tun?'
     
-    td = PlannedNoti.get_scheduled()[0].time_remaining
+    t = datetime.datetime.fromtimestamp(notification.get_scheduled()[0]['fire_date'])
+    td = t - datetime.datetime.now()
     td_str = str(td).split('.')[0] # cut milliseconds
     text = 'Restdauer aktueller Task: {}'.format(td_str)
     
-    for line in status:
-        text += '\n' + line
+    for i in range(min(15, len(status))):
+        text += '\n' + status[i]
     return text
 
 def get_siri_status(quiet_if_not_active=False):
     ''' This is prepared for Siri Shortcuts which will be available with the next version of Pythonista'''
-    notis = PlannedNoti.get_scheduled()
+    notis = notification.get_scheduled()
     if not notis and quiet_if_not_active:
         return None
     elif not notis:
         return 'Kein Intervalltraining aktiv.'
     
-    text = 'Noch {} Minuten. '.format(round(notis[0].time_remaining.total_seconds() / 60))
+    t = datetime.datetime.fromtimestamp(notis[0]['fire_date'])
+    td = t - datetime.datetime.now()
+    text = 'Noch {} Minuten. '.format(round(td.total_seconds() / 60))
     
-    m = re.match(r"(\w+?) .+\((\d+) min\)", notis[0].message)
+    m = re.match(r"(\w+?) .+\((\d+) min\)", notis[0]['message'])
     if m:
         text += 'Dann {} für {} Minuten.'.format(m[1], m[2])
     return text
-
-def close(sender):
-    '''UI: Schließen'''
-    sender.superview.close()
-
-def cancel(sender):
-    '''UI: Benachrichtigungen entfernen'''
-    notification.cancel_all()
-    dialogs.alert(title='Benachrichtigungen entfernt', button1='Okay', hide_cancel_button=True)
-    sender.superview.close()
-    
-def start(sender):
-    '''UI: Start/Restart'''
-    notification.cancel_all() # Erstmal aufräumen
-    PlannedNoti.remove_pause_data()
-    
-    delay = 0.1
-    programm_id = dialogs.list_dialog(title='Programm?', items=list(programmes.keys()))
-    print(programm_id)
-    summe_der_einzelzeiten = round(sum(tupel[1] for tupel in programmes[programm_id]), 2)
-    print('Dauer insg.: {} Minuten'.format(summe_der_einzelzeiten))
-    for (typ, dauer) in programmes[programm_id]:
-        stell_benachrichtigung_ein(typ=task_types[typ], dauer=dauer, delay_in_minuten=delay)
-        delay = dauer
-        
-    # Schlussbenachrichtigung einstellen:
-    global letztes_delay   
-    letztes_delay = letztes_delay + delay * 60
-    PlannedNoti.init_and_schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='arcade:Coin_3')
-    
-    print(PlannedNoti.get_benachrichtigungen_status())
-    sender.superview.close()
-    
-def pause_or_continue(sender):
-    '''UI: Pause/Weiter'''
-    if PlannedNoti.check_if_pause_data_is_available():
-       PlannedNoti.load_paused_data()
-       dialogs.alert(title='Zwischenstand geladen\nWeiter gehts!', button1='Okay', hide_cancel_button=True)
-       print(get_startchoice_text())
-    else:
-        PlannedNoti.pause()
-        dialogs.alert(title='Zwischenstand gesichert', button1='Okay', hide_cancel_button=True)
-    sender.superview.close()
 
 def main():
     siri_status = get_siri_status(quiet_if_not_active=True)
     if siri_status: speech.say(siri_status, 'de-DE')
     
-    active_session_available = len(PlannedNoti.get_scheduled())>0
-    view = ui.load_view(pyui_path='Noti3.pyui')
-    view['status'].text = get_startchoice_text()
-    view['pauseButton'].enabled = PlannedNoti.check_if_pause_data_is_available() or active_session_available
-    view['cancelButton'].enabled = active_session_available
-    view.present(style='full_screen', title_bar_color='#af3a8a', title_color='#ffffff', orientations=['portrait'], hide_close_button=True)
-
-def test():
-    for i in range(1,3):
-        PlannedNoti.init_and_schedule(message='Hello {}'.format(i), delay=i*60)
-    noti = PlannedNoti.get_scheduled()[0]
-    print(noti)
-    notification.cancel_all()
-
+    start_choice = dialogs.alert(title='Intervall-Benachrichtigungen', 
+        message=get_startchoice_text(), 
+        button1='Start/Restart', 
+        button2='Benachrichtigungen entfernen',
+        button3='Schließen',
+        hide_cancel_button=True)
+    
+    if start_choice == 1: # Start/Restart
+        notification.cancel_all() # Erstmal aufräumen
+    
+        delay = 0.1
+        programm_id = dialogs.list_dialog(title='Programm?', items=list(programmes.keys()))
+        print(programm_id)
+        summe_der_einzelzeiten = round(sum(tupel[1] for tupel in programmes[programm_id]), 2)
+        print('Dauer insg.: {} Minuten'.format(summe_der_einzelzeiten))
+        for (typ, dauer) in programmes[programm_id]:
+            stell_benachrichtigung_ein(typ=task_types[typ], dauer=dauer, delay_in_minuten=delay)
+            delay = dauer
+            
+        # Schlussbenachrichtigung einstellen:
+        global letztes_delay   
+        letztes_delay = letztes_delay + delay * 60
+        notification.schedule('Geschafft! 🥳', delay=letztes_delay, sound_name='Media/Sounds/arcade/Coin_3')
+        
+        print(get_benachrichtigungen_status())
+    
+    elif start_choice == 2: # Benachrichtigungen entfernen
+        notification.cancel_all()
+        dialogs.alert(title='Benachrichtigungen entfernt', button1='Okay', hide_cancel_button=True)
+        
 if __name__ == '__main__':
-    main()
+	main()
